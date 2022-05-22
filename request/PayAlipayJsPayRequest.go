@@ -5,7 +5,7 @@ import "encoding/xml"
 type PayAlipayJsPayRequest struct {
 	XMLName xml.Name `xml:"xml"`
 	CommonParam
-	Body                 string `xml:"body,omitempty"`
+	Body                 string `xml:"body"`
 	Attach               string `xml:"attach,omitempty"`
 	TotalFee             string `xml:"total_fee,omitempty"`
 	MchCreateIp          string `xml:"mch_create_ip,omitempty"`
@@ -20,20 +20,20 @@ type PayAlipayJsPayRequest struct {
 	BuyerId              string `xml:"buyer_id,omitempty"`
 }
 
-func (pwnr PayAlipayJsPayRequest) ServiceName() string {
+func (r PayAlipayJsPayRequest) ServiceName() string {
 	return "pay.alipay.jspay"
 }
 
-func (pwnr PayAlipayJsPayRequest) DecodeToXml(sign string) []byte {
-	pwnr.Sign = sign
-	if pwnr.SignType == "" {
-		pwnr.SignType = "MD5"
+func (r PayAlipayJsPayRequest) Full() Request {
+	if r.SignType == "" {
+		r.SignType = "MD5"
 	}
-	pwnr.Service = pwnr.ServiceName()
-	xmlByte, decodeError := xml.Marshal(pwnr)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	r.Service = r.ServiceName()
+	return r
+}
+
+func (r PayAlipayJsPayRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }

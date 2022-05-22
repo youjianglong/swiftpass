@@ -1,8 +1,8 @@
 package swiftpass
 
 import (
-	"swiftpass/pkg/swiftpass/request"
-	"swiftpass/pkg/swiftpass/response"
+	"swiftpass/request"
+	"swiftpass/response"
 	"testing"
 	"time"
 )

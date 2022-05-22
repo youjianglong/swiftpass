@@ -13,20 +13,20 @@ type UnifiedTradeRefundRequest struct {
 	RefundChannel string `xml:"refund_channel"`
 }
 
-func (pwnr UnifiedTradeRefundRequest) ServiceName() string {
+func (r UnifiedTradeRefundRequest) ServiceName() string {
 	return "unified.trade.refund"
 }
 
-func (pwnr UnifiedTradeRefundRequest) DecodeToXml(sign string) []byte {
-	pwnr.Sign = sign
-	if pwnr.SignType == "" {
-		pwnr.SignType = "MD5"
+func (r UnifiedTradeRefundRequest) Full() Request {
+	if r.SignType == "" {
+		r.SignType = "MD5"
 	}
-	pwnr.Service = pwnr.ServiceName()
-	xmlByte, decodeError := xml.Marshal(pwnr)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	r.Service = r.ServiceName()
+	return r
+}
+
+func (r UnifiedTradeRefundRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }

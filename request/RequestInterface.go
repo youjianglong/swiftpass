@@ -3,7 +3,8 @@ package request
 //威富通的支付接口
 type Request interface {
 	ServiceName() string
-	DecodeToXml(string) []byte
+	Full() Request
+	Encode(sign string) []byte
 }
 
 type CommonParam struct {

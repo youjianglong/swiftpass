@@ -19,20 +19,20 @@ type PayWeixinWapPayRequest struct {
 	MchCreateIp string `xml:"mch_create_ip"`
 }
 
-func (pwnr PayWeixinWapPayRequest) ServiceName() string {
+func (r PayWeixinWapPayRequest) ServiceName() string {
 	return "pay.weixin.wappay"
 }
 
-func (pwnr PayWeixinWapPayRequest) DecodeToXml(sign string) []byte {
-	pwnr.Sign = sign
-	if pwnr.SignType == "" {
-		pwnr.SignType = "MD5"
+func (r PayWeixinWapPayRequest) Full() Request {
+	if r.SignType == "" {
+		r.SignType = "MD5"
 	}
-	pwnr.Service = pwnr.ServiceName()
-	xmlByte, decodeError := xml.Marshal(pwnr)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	r.Service = r.ServiceName()
+	return r
+}
+
+func (r PayWeixinWapPayRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }

@@ -1,18 +1,15 @@
 package swiftpass
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"encoding/xml"
+	"errors"
 	"io/ioutil"
 	"net/http"
-	"sort"
 	"strings"
 
 	"swiftpass/request"
@@ -42,6 +39,12 @@ const (
 	SignTypeRsa = "RSA"
 )
 
+var (
+	ErrNoRsaKey      = errors.New("not rsa key")
+	ErrRsaPrivateKey = errors.New("failed to load rsa private key")
+	ErrRsaPublicKey  = errors.New("failed to load rsa public key")
+)
+
 type SwiftClient struct {
 	Key         string
 	GetWay      string
@@ -68,17 +71,20 @@ func NewDefaultClient(key string) *SwiftClient {
 }
 
 //加载rsa秘钥文件
-func (swiftClient *SwiftClient) LoadRsaKeyFile(priveteKey, publicKey string) {
+func (swiftClient *SwiftClient) LoadRsaKeyFile(priveteKey, publicKey string) error {
 	readPrivateByte, readErr := ioutil.ReadFile(priveteKey)
 	if readErr != nil || len(readPrivateByte) == 0 {
-		panic("private key file read fail")
+		return ErrRsaPrivateKey
 	}
 	swiftClient.PrivateKey = readPrivateByte
+
 	readPublicByte, readErr := ioutil.ReadFile(publicKey)
 	if readErr != nil || len(readPublicByte) == 0 {
-		panic("private key file read fail")
+		return ErrRsaPublicKey
 	}
 	swiftClient.PublicKey = readPublicByte
+
+	return nil
 }
 
 //加载rsa秘钥文件
@@ -87,72 +93,60 @@ func (swiftClient *SwiftClient) LoadRsaKeyByte(priveteKey, publicKey []byte) {
 	swiftClient.PublicKey = publicKey
 }
 
-//加载私钥
-func loadPrivateKey(content []byte) *rsa.PrivateKey {
-	block, _ := pem.Decode(content)
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		panic(err)
-	}
-	return key
-}
-
-//加载公钥
-func loadPublicKey(content []byte) *rsa.PublicKey {
-	block, _ := pem.Decode(content)
-	key, err := x509.ParsePKCS1PublicKey(block.Bytes)
-	if err != nil {
-		panic(err)
-	}
-	return key
-}
-
 //生成md5签名
 func (swiftClient *SwiftClient) GenerateSign(req request.Request) string {
-	xmlData := req.DecodeToXml("")
-	params := Xml2Map(bytes.NewReader(xmlData))
-	paramStr := buildQuery(params)
+	params := XmlObject2Map(req)
+	delete(params, "sign")
+	paramStr := BuildQueryString(params)
 	paramStr += "&key=" + swiftClient.Key
-	sign := strings.ToUpper(Md5String(paramStr))
-	return sign
+	return strings.ToUpper(Md5String(paramStr))
 }
 
 //生成ras签名
-func (swiftClient *SwiftClient) GenerateSignRsa(req request.Request) string {
+func (swiftClient *SwiftClient) GenerateSignRsa(req request.Request) (string, error) {
 	if len(swiftClient.PrivateKey) == 0 || len(swiftClient.PublicKey) == 0 {
-		panic("please load key file!")
+		return "", ErrNoRsaKey
 	}
-	xmlData := req.DecodeToXml("")
-	params := Xml2Map(bytes.NewReader(xmlData))
-	data := []byte(buildQuery(params))
+
+	params := XmlObject2Map(req)
+	delete(params, "sign")
+	data := []byte(BuildQueryString(params))
+
 	h := sha256.New()
 	h.Write(data)
 	hashed := h.Sum(nil)
-	privateKey := loadPrivateKey(swiftClient.PrivateKey)
+	privateKey, err := DecodePrivateKey(swiftClient.PrivateKey)
 	newData, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashed)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(newData)
+	return base64.StdEncoding.EncodeToString(newData), nil
 }
 
 //提交支付
-func (c *SwiftClient) Execute(swpReq request.Request, swpResp response.Response) error {
-	sign := ""
+func (c *SwiftClient) Execute(req request.Request, swpResp response.Response) error {
+	var sign string
+	var err error
+
+	req = req.Full()
 	if c.SignType == "" || c.SignType == SignTypeMd5 {
-		sign = c.GenerateSign(swpReq)
+		sign = c.GenerateSign(req)
 	} else {
-		sign = c.GenerateSignRsa(swpReq)
+		sign, err = c.GenerateSignRsa(req)
 	}
 
-	data := swpReq.DecodeToXml(sign)
+	if err != nil {
+		return err
+	}
+
+	data := req.Encode(sign)
 	c.RequestXml = string(data)
 
-	req, _ := http.NewRequest("POST", c.GetWay, strings.NewReader(string(data)))
-	req.Header.Set("Accept", "text/xml,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Charset", "UTF-8")
+	httpReq, _ := http.NewRequest("POST", c.GetWay, strings.NewReader(string(data)))
+	httpReq.Header.Set("Accept", "text/xml,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	httpReq.Header.Set("Charset", "UTF-8")
 
-	res, err := c.client.Do(req)
+	res, err := c.client.Do(httpReq)
 	if err != nil {
 		return err
 	}
@@ -174,48 +168,22 @@ func (c *SwiftClient) Verify(n Notify) bool {
 	if n.Sign == "" {
 		return false
 	}
-	xmlData, _ := xml.Marshal(n)
-	params := Xml2Map(bytes.NewReader(xmlData))
+
+	params := XmlObject2Map(n)
 	delete(params, "sign")
-	paramStr := buildQuery(params)
+	paramStr := BuildQueryString(params)
 
 	if n.SignType == SignTypeMd5 { //MD5签名
 		return n.Sign == strings.ToUpper(Md5String(paramStr+"&key="+c.Key))
 	}
-	key := loadPublicKey(c.PublicKey)
+	key, err := DecodePublicKey(c.PublicKey)
+	if err != nil {
+		return false
+	}
 	h := sha256.New()
 	h.Write([]byte(paramStr))
 	hashed := h.Sum(nil)
 	sig, _ := base64.StdEncoding.DecodeString(n.Sign)
 
 	return rsa.VerifyPKCS1v15(key, crypto.SHA256, hashed, sig) == nil
-}
-
-//对字典key进行排序
-func sortKeys(m map[string]string) []string {
-	keys := make([]string, 0)
-	for key, _ := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-//生成url请求串
-func buildQuery(params map[string]string) string {
-	signParams := map[string]string{}
-	for k, v := range params {
-		if v == "" {
-			continue
-		}
-		signParams[k] = v
-	}
-
-	keys := sortKeys(signParams)
-
-	queryStr := ""
-	for _, key := range keys {
-		queryStr += key + "=" + signParams[key] + "&"
-	}
-	return queryStr[:len(queryStr)-1]
 }

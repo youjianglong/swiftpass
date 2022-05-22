@@ -8,20 +8,20 @@ type UnifiedTradeCloseRequest struct {
 	CommonParam
 }
 
-func (pwnr UnifiedTradeCloseRequest) ServiceName() string {
+func (r UnifiedTradeCloseRequest) ServiceName() string {
 	return "unified.trade.close"
 }
 
-func (pwnr UnifiedTradeCloseRequest) DecodeToXml(sign string) []byte {
-	pwnr.Sign = sign
-	if pwnr.SignType == "" {
-		pwnr.SignType = "MD5"
+func (r UnifiedTradeCloseRequest) Full() Request {
+	if r.SignType == "" {
+		r.SignType = "MD5"
 	}
-	pwnr.Service = pwnr.ServiceName()
-	xmlByte, decodeError := xml.Marshal(pwnr)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	r.Service = r.ServiceName()
+	return r
+}
+
+func (r UnifiedTradeCloseRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }

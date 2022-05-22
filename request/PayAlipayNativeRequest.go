@@ -18,20 +18,20 @@ type PayAlipayNativeRequest struct {
 	MchCreateIp          string `xml:"mch_create_ip"`
 }
 
-func (pwnr PayAlipayNativeRequest) ServiceName() string {
+func (r PayAlipayNativeRequest) ServiceName() string {
 	return "pay.alipay.native"
 }
 
-func (pwnr PayAlipayNativeRequest) DecodeToXml(sign string) []byte {
-	pwnr.Sign = sign
-	if pwnr.SignType == "" {
-		pwnr.SignType = "MD5"
+func (r PayAlipayNativeRequest) Full() Request {
+	if r.SignType == "" {
+		r.SignType = "MD5"
 	}
-	pwnr.Service = pwnr.ServiceName()
-	xmlByte, decodeError := xml.Marshal(pwnr)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	r.Service = r.ServiceName()
+	return r
+}
+
+func (r PayAlipayNativeRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }

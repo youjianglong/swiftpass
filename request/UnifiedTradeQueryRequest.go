@@ -8,20 +8,20 @@ type UnifiedTradeQueryRequest struct {
 	TransactionId string `xml:"transaction_id"`
 }
 
-func (pwnr UnifiedTradeQueryRequest) ServiceName() string {
+func (r UnifiedTradeQueryRequest) ServiceName() string {
 	return "unified.trade.query"
 }
 
-func (pwnr UnifiedTradeQueryRequest) DecodeToXml(sign string) []byte {
-	pwnr.Sign = sign
-	if pwnr.SignType == "" {
-		pwnr.SignType = "MD5"
+func (r UnifiedTradeQueryRequest) Full() Request {
+	if r.SignType == "" {
+		r.SignType = "MD5"
 	}
-	pwnr.Service = pwnr.ServiceName()
-	xmlByte, decodeError := xml.Marshal(pwnr)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	r.Service = r.ServiceName()
+	return r
+}
+
+func (r UnifiedTradeQueryRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }

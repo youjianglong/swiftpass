@@ -1,6 +1,8 @@
 package request
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+)
 
 //统一扫码支付下单
 type UnifiedTradeNativeRequest struct {
@@ -34,16 +36,16 @@ func (r UnifiedTradeNativeRequest) ServiceName() string {
 	return "unified.trade.native"
 }
 
-func (r UnifiedTradeNativeRequest) DecodeToXml(sign string) []byte {
-	r.Sign = sign
+func (r UnifiedTradeNativeRequest) Full() Request {
 	if r.SignType == "" {
 		r.SignType = "MD5"
 	}
 	r.Service = r.ServiceName()
-	xmlByte, decodeError := xml.Marshal(r)
-	if decodeError == nil {
-		return xmlByte
-	} else {
-		return nil
-	}
+	return r
+}
+
+func (r UnifiedTradeNativeRequest) Encode(sign string) []byte {
+	r.Sign = sign
+	content, _ := xml.Marshal(r)
+	return content
 }
