@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"strings"
 
-	"swiftpass/request"
-	"swiftpass/response"
+	"github.com/youjianglong/swiftpass/request"
+	"github.com/youjianglong/swiftpass/response"
 )
 
 const (
